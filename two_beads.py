@@ -244,7 +244,7 @@ class Twobeads_sim():
 
 class Twobeads_exp():
 
-    def __init__(self, angles_deg=(), speeds_Hz=(), xys_px=(), take_abs=False, FPS=1, filtwin=1, filttype='run_win_smooth', ph_scramble_n=20):
+    def __init__(self, angles_deg=(), speeds_Hz=(), xys_px=(), negate_0=False, negate_1=False, FPS=1, filtwin=1, filttype='run_win_smooth', ph_scramble_n=20):
         ''' 
         Analyse two experimental speed traces for correlation
         
@@ -257,6 +257,7 @@ class Twobeads_exp():
         take_abs : use abs of speeds
         FPS [1] : frames per seconds
         ph_scramble_n [20] : num. of iterations of phase scrambling for background in xcorr
+        negate_0, negate_1 : negate speeds
         '''
         self.FPS = FPS
         self.cut_off = 0
@@ -264,6 +265,8 @@ class Twobeads_exp():
         self.filttype = filttype
         self.ph_scramble_n = ph_scramble_n
         self.usemode = 'valid'
+        self.negate_0 = negate_0
+        self.negate_1 = negate_1
         if len(speeds_Hz) == 2 and len(angles_deg) == 0:
             self.speed0_Hz = speeds_Hz[0]
             self.speed1_Hz = speeds_Hz[1]
@@ -276,9 +279,10 @@ class Twobeads_exp():
             raise Exception('Give either angles_deg or speeds_Hz as (A,B)')
         if len(xys_px) == 4:
             self.xys_px = xys_px
-        if take_abs:
-            self.speed0_Hz = np.abs(self.speed0_Hz)
-            self.speed1_Hz = np.abs(self.speed1_Hz)
+        if negate_0: 
+            self.speed0_Hz = -self.speed0_Hz
+        if negate_1:
+            self.speed1_Hz = -self.speed1_Hz
         # make signals for speeds cross correlation:
         self.x = (self.speed0_Hz - np.mean(self.speed0_Hz))/np.std(self.speed0_Hz)
         self.z = (self.speed1_Hz - np.mean(self.speed1_Hz))/np.std(self.speed1_Hz)
