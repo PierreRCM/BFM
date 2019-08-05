@@ -14,6 +14,9 @@ def savgol_filter(x, win, polyorder, plots=0):
     if polyorder >= win:
         polyorder = win-1
         print('savgol_filter(): bad polyorder fixed to win-1')
+    if np.mod(win,2) == 0:
+        win = win+1
+        print('Warning savgol_filter, win must be odd: forced win = '+str(win))
     y = sig.savgol_filter(x, window_length=win, polyorder=polyorder)
     if plots:
         plt.figure('savgol_filter()')
