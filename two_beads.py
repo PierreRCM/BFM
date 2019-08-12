@@ -252,12 +252,11 @@ class Twobeads_exp():
         angles_deg = (theta0_deg, theta1_deg)
             or 
         speeds_Hz = (speed0_Hz, speed1_Hz)
-        the speeds are filtered using 'filtwin' 'filttype'. See below for possible filttype.
+        the speeds are filtered using 'filtwin' 'filttype'. See below for possible 'filttype'.
         xys_px = (x0s_px, y0s_px, x1s_px, y1s_px): x-y trajectory
-        take_abs : use abs of speeds
-        FPS [1] : frames per seconds
+        FPS [=1] : frames per seconds
+        negate_0, negate_1 : negate speeds (speed = -speed)
         ph_scramble_n [20] : num. of iterations of phase scrambling for background in xcorr
-        negate_0, negate_1 : negate speeds
         '''
         self.FPS = FPS
         self.cut_off = 0
