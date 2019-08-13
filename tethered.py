@@ -1,21 +1,12 @@
-
-
 # tethered cell analysis, video from tdms file
 # francesco Nov 2015
+# TODO make it Class
+
 
 import sys
-if '/home/francesco/scripts/bactMotor/py/' not in sys.path:
-        sys.path.append(r'/home/francesco/scripts/bactMotor/py')
-import analysis_rotation
-reload(analysis_rotation)
-if '/home/francesco/scripts/npTDMS' not in sys.path:
-    sys.path.append(r'/home/francesco/scripts/npTDMS')
-import openTDMS
-reload(openTDMS)
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
-import progressbar
 import re
 import skimage
 from scipy import ndimage
@@ -26,12 +17,11 @@ import progressbar
 import multiprocessing as mulpr
 import time
 
+import openTDMS
 
-global px2m
+
+
 px2m = 147e-9 # meter/pixel
-
-
-global mouse_button, mouse_x, mouse_y
 mouse_x = []
 mouse_y = []
 mouse_button = []
