@@ -1,6 +1,7 @@
 # all kind of filters for time traces
 # Fra 2015
 
+# TODO :  use scipy.signal.filtfilt instead of to apply the Butterworth filter. filtfilt is the forward-backward filter. It applies the filter twice, once forward and once backward, resulting in zero phase delay.
 
 import numpy as np
 from scipy.signal import butter, lfilter, freqz, bode, medfilt, filtfilt
