@@ -142,7 +142,7 @@ def pickPx(print_out=0):
     xint = int(round(coord[0][0]))
     yint = int(round(coord[0][1]))
     if print_out == 1:
-        print 'chosen: x={0} y={1}'.format(xx,yy)
+        print('chosen: x={0} y={1}'.format(xx,yy))
         sys.stdout.flush()
     return xint,yint, xflo,yflo
 
