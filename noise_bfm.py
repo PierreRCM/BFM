@@ -345,24 +345,26 @@ class BFMnoise():
         
         self.speed_amp_atspike = []
         self.stoich_amp_atspike = []
+        self.speed_avg_atspike = []
         for i0,i1 in zip(spikes_idx0s, spikes_idx1s):
             # find speed amplitude of spikes:
             meansp0 = np.mean(speed_corr[np.max([i0 - int(didxs[0]/2), 0]): i0])
             meansp1 = np.mean(speed_corr[i1: np.min([i1 + int(didxs[0]/2), len(speed_corr)])])
-            speed_avg_atspike = np.mean([meansp0, meansp1])
+            _speed_avg_atspike = np.mean([meansp0, meansp1])
             speed_min_atspike = np.min(speed_corr[i0:i1])
-            self.speed_amp_atspike = np.append(self.speed_amp_atspike, speed_avg_atspike - speed_min_atspike)
+            self.speed_avg_atspike = np.append(self.speed_avg_atspike, _speed_avg_atspike)
+            self.speed_amp_atspike = np.append(self.speed_amp_atspike, _speed_avg_atspike - speed_min_atspike)
         # find stoichiometry of jump:
         self.stoich_amp_atspike = self.speed_amp_atspike/self.stoich_thr
 
         if plots_lev:
             ax1.plot(speed)
             ax1.plot(idx_spikes[:-1][cond_0], speed[idx_spikes[:-1][cond_0]], 'ro', alpha=0.2, mec='none')
-            ax1.plot(idx_spikes[:-1][cond_1], speed[idx_spikes[:-1][cond_1]], 'bo', mfc='none')
+            ax1.plot(idx_spikes[:-1][cond_1], speed[idx_spikes[:-1][cond_1]], 'bo', mfc='none', ms=3)
             ax1.plot(idx_spikes, speed[idx_spikes], 'k.', ms=2)
             ax1.plot(idxs[:-1], speed[idxs[:-1]], 'k+')
-            ax1.plot(spikes_idx0s, speed[spikes_idx0s], 's', mfc='none', ms=3)
-            ax1.plot(spikes_idx1s, speed[spikes_idx1s], 'd', mfc='none', ms=3)
+            ax1.plot(spikes_idx0s, speed[spikes_idx0s], 'kv', mfc='none', ms=6)
+            ax1.plot(spikes_idx1s, speed[spikes_idx1s], 'k^', mfc='none', ms=6)
             ax1.set_ylabel('Speed (Hz)')
             ax1.set_xlabel('idx')
             ax2.plot(speed_corr)
@@ -378,9 +380,8 @@ class BFMnoise():
 
             fig3 = plt.figure('spikes_analysis 3', clear=True)
             bbins = 50
-            
             plt.subplot(421)
-            plt.plot(speed_corr[spikes_idx0s], spikes_durations2_s, '.', ms=4)
+            plt.plot(self.speed_avg_atspike, spikes_durations2_s, '.', ms=4)
             plt.xlabel('Speed (Hz)')
             plt.ylabel('Spike duration (s)')
             plt.subplot(422)
@@ -391,7 +392,7 @@ class BFMnoise():
             plt.legend()
             
             plt.subplot(423)
-            plt.plot(speed_corr[spikes_idx0s][:-1], spikes_timebtw_s, 'o', ms=4)
+            plt.plot(self.speed_avg_atspike[:-1], spikes_timebtw_s, '.', ms=4)
             plt.xlabel('Speed (Hz)')
             plt.ylabel('Time between spikes(s)')
             plt.subplot(424)
@@ -400,7 +401,7 @@ class BFMnoise():
             plt.ylabel('Counts')
 
             plt.subplot(425)
-            plt.plot(speed_corr[spikes_idx0s], self.speed_amp_atspike, '.', ms=4)
+            plt.plot(self.speed_avg_atspike, self.speed_amp_atspike, '.', ms=4)
             plt.ylabel('Spike ampl (Hz)')
             plt.xlabel('Speed (Hz)')
             plt.subplot(426)
@@ -418,7 +419,7 @@ class BFMnoise():
             plt.xlabel('Dn_stators at spike')
             plt.ylabel('Counts')
 
-            plt.tight_layout()
+            #plt.tight_layout()
 
 
 
@@ -431,15 +432,15 @@ class BFMnoise():
         import break_points
         bkpts = break_points.BreakPoints(self.speed_Hz_f[c0:c1])
         bkpts.rpt_find_brkpts(segmentation_fn='BottomUp', cost_fn='l1', dws=dws, pen=penalty, plots=plots, clear=True)
-        # all jumps in signal: TODO use mean or meidian for stoich_thr?
+        # ampl of all jumps in signal: 
         sig_jumps = bkpts.sig_jumps
-        # define threshold if not given:
+        # define threshold (=speed per stator) if not given:
         if not stoich_thr:
             stoich_thr = np.median(sig_jumps)
         # store unit speed: 
         self.stoich_thr = stoich_thr
         print(f'BFMnoise.find_stoichiometry(): using stoich_thr:{stoich_thr:.3f}')
-        # pice-wise linear signal:
+        # pice-wise linear signal original sampling:
         sig_bkpts = bkpts.sig_bkpts
         # integer jumps wrt to threshold:
         jumps = np.round(np.diff(sig_bkpts)/stoich_thr)
@@ -461,15 +462,18 @@ class BFMnoise():
             plt.plot(bkpts.sig_dws_bkpts, '-k', lw=2)
             plt.ylabel('relative stoich jump')
             plt.subplot(312)
-            plt.plot(stoich, lw=3)
-            plt.plot(stoich_cor, label='+offset')
-            plt.plot(idxs, jumps[idxs], 'o', label='jumps')
+            plt.plot(stoich[::dws], lw=3, label='stoich')
+            plt.plot(stoich_cor[::dws], label='stoich+offset')
+            plt.plot(idxs/dws, jumps[idxs], 'o', label='jumps')
             plt.legend()
             plt.ylabel('absolute stoich')
-            plt.xlabel('idx sig')
             plt.subplot(313)
-            plt.plot(stoich[:-1] - sig_bkpts[1:]/stoich_thr)
-            plt.title(f'stoich_offset={stoich_offset:.3}', fontsize=10)
+            plt.plot(stoich[:-1:dws] , 'k', label='stoich')
+            plt.plot(sig_bkpts[1::dws]/stoich_thr, 'r', label='sig/speed_1stator')
+            plt.plot(stoich[:-1:dws] - sig_bkpts[1::dws]/stoich_thr, label='diff')
+            plt.title(f'=> stoich_offset={stoich_offset:.3} -> {np.round(stoich_offset)}', fontsize=8)
+            plt.legend()
+            plt.xlabel('idx sig (dws)')
             plt.tight_layout()
 
 
