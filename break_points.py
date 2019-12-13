@@ -11,19 +11,24 @@ class BreakPoints():
     ''' find brake points in trace using ruptures '''
 
 
-    def __init__(self):
-        self.sig = np.load('test_sig0.npy')
+    def __init__(self, sig, plots=False):
+        ''' sig: np.array of signal '''
+        #self.sig = np.load('test_sig0.npy')
         #self.sig = np.load('test_sig1.npy')
-        print(f'len(sig) : {len(self.sig)}')
-        plt.figure('rpt_test0',clear=True)
-        plt.plot(self.sig)
+        self.sig = sig
+        print(f'BreakPoints.__init__(): found len(sig) = {len(self.sig)}')
+        if plots:
+            plt.figure('BreakPoints.__init__',clear=True)
+            plt.plot(self.sig)
 
 
 
-    def rpt_find_brkpts(self, segmentation_fn='Pelt', cost_fn='l1', dws=None, pen=None, clear=False):
+    def rpt_find_brkpts(self, segmentation_fn='BottomUp', cost_fn='l1', dws=None, pen=None, plots=True, clear=False):
         ''' find brake points
-        segmentation_fn : Pelt, Binseg, BottomUp
-        cost_fn : l1, l2, ...        
+        segmentation_fn:         cost_fn:
+        Pelt                     l1, l2, rbf 
+        Binseg                   l1, l2, rbf, linear, normal, ar
+        BottomUp                 l1, l2, rbf, linear, normal, ar
         '''
         self.cost_fn = cost_fn
         self.sig_dws = self.sig[::dws]
@@ -32,10 +37,9 @@ class BreakPoints():
         # store:
         self.pen = pen
         self.dws = dws
-        print(f'rpt_find_brkpts(): pen : {pen:.2f}')
-        print(f'rpt_find_brkpts(): len(sig dws) : {len(self.sig_dws)}')
+        print(f'BreakPoints.rpt_find_brkpts(): pen : {pen:.2f}')
+        print(f'BreakPoints.rpt_find_brkpts(): len(sig dws) : {len(self.sig_dws)}')
         # find break points:
-        print(f'rpt_find_brkpts(): Working..')
         if segmentation_fn == 'Pelt':
             self.rpt_segm = rpt.Pelt
         elif segmentation_fn == 'Binseg':
@@ -44,29 +48,35 @@ class BreakPoints():
             self.rpt_segm = rpt.BottomUp
         else:
             raise Exception('segmentation_fn not defined')
+        print(f'BreakPoints.rpt_find_brkpts(): Using {self.rpt_segm} with cost {self.cost_fn}. Working...')
         t0 = time.time()
         self.bkpts = self.rpt_segm(model=self.cost_fn, jump=1).fit_predict(self.sig_dws, pen=pen)
+        # store break points:
         self.bkpts = np.append(0, self.bkpts)
         self.dt = time.time()-t0
-        print(f'rpt_find_brkpts(): Done. Time: {self.dt:.2f} sec')
-        # signal of discete levels between bkpts, downsampled:
+        print(f'BreakPoints.rpt_find_brkpts(): Done. Time: {self.dt:.2f} sec')
+        # store signal of discete levels between bkpts, downsampled:
         self.sig_dws_bkpts = []
         for i0,i1 in zip(self.bkpts[:-1], self.bkpts[1:]):
             self.sig_dws_bkpts = np.append(self.sig_dws_bkpts, np.repeat(np.median(self.sig_dws[i0:i1]), i1-i0))
-        # signal of discete levels between bkpts, original sampling:
+        # store signal of discete levels between bkpts, original sampling:
         self.sig_bkpts = np.array([np.repeat(i,self.dws) for i in self.sig_dws_bkpts]).ravel()
+        dsig = np.diff(self.sig_dws_bkpts) 
+        # store jumps in sig:
+        self.sig_jumps = dsig[dsig > 0]
         # plots:
-        self.rpt_find_brkpts_plots(clear)
+        if plots:
+            self.rpt_find_brkpts_plots(clear)
 
 
 
     def rpt_find_brkpts_plots(self, clear=False):
         ''' plot after rpt_find_brkpts() '''
-        plt.figure('rpt_test', clear=clear)
-        plt.vlines(self.bkpts, np.min(self.sig), np.max(self.sig), 'y', lw=2)
-        plt.plot(np.arange(len(self.sig))/self.dws, self.sig, label='orig')
+        plt.figure('rpt_find_brkpts_plots', clear=clear)
+        plt.vlines(self.bkpts, np.min(self.sig), np.max(self.sig), 'y', lw=1)
+        plt.plot(np.arange(len(self.sig))[::10]/self.dws, self.sig[::10], label='orig')
         plt.plot(self.sig_dws, '.', ms=2, label='dwsampled')
-        plt.plot(self.sig_dws_bkpts, '-k')
+        plt.plot(self.sig_dws_bkpts, '-k', lw=2)
         plt.title(f'segm_type:{self.rpt_segm}    cost_fn:{self.cost_fn}    pen:{self.pen:.1f}    npts:{len(self.sig_dws)}    dt:{self.dt:.1f} sec', fontsize=10)
         plt.legend()
         plt.xlabel('dws_idx')
