@@ -276,7 +276,7 @@ class BFMnoise():
         '''
         if len(speed) != len(angle_turns):
             raise Exception(f'len(speed) {len(speed)} must be = len(angle_turns) {len(angle_turns)}')
-        if plots_lev >= 1:
+        if plots_lev:
             fig1 = plt.figure('spikes_analysis 1', clear=True)
             ax1 = fig1.add_subplot(311)
             ax2 = fig1.add_subplot(312, sharex=ax1, sharey=ax1)
@@ -315,6 +315,7 @@ class BFMnoise():
                 ax22.plot(_idx_spikes, speedw[_idx_spikes-i], 'o')
                 ax23.hist(speedw - np.mean(speedw), 50, log=True, histtype='step')
                 plt.pause(.1)
+        print()
         # filter out spikes:
         didx_spikes = np.diff(idx_spikes)
         cond_0 = (didx_spikes <= cond_thr)
@@ -347,14 +348,14 @@ class BFMnoise():
         self.stoich_amp_atspike = []
         self.speed_avg_atspike = []
         for i0,i1 in zip(spikes_idx0s, spikes_idx1s):
-            # find speed amplitude of spikes:
+            # find speed-amplitude of spikes:
             meansp0 = np.mean(speed_corr[np.max([i0 - int(didxs[0]/2), 0]): i0])
             meansp1 = np.mean(speed_corr[i1: np.min([i1 + int(didxs[0]/2), len(speed_corr)])])
             _speed_avg_atspike = np.mean([meansp0, meansp1])
             speed_min_atspike = np.min(speed_corr[i0:i1])
             self.speed_avg_atspike = np.append(self.speed_avg_atspike, _speed_avg_atspike)
             self.speed_amp_atspike = np.append(self.speed_amp_atspike, _speed_avg_atspike - speed_min_atspike)
-        # find stoichiometry of jump:
+        # find stoichiometry-amplitude of spikes:
         self.stoich_amp_atspike = self.speed_amp_atspike/self.stoich_thr
 
         if plots_lev:
@@ -380,6 +381,7 @@ class BFMnoise():
 
             fig3 = plt.figure('spikes_analysis 3', clear=True)
             bbins = 50
+            # TODO kernel density instead of hists 
             plt.subplot(421)
             plt.plot(self.speed_avg_atspike, spikes_durations2_s, '.', ms=4)
             plt.xlabel('Speed (Hz)')
@@ -418,8 +420,51 @@ class BFMnoise():
             plt.hist(self.stoich_amp_atspike, bbins)
             plt.xlabel('Dn_stators at spike')
             plt.ylabel('Counts')
-
             #plt.tight_layout()
+
+
+
+    def auto_filter_spikeanalysis(self, c0=None, c1=None, filters=[], bins=40):
+        ''' automatically filter speed[c0:c1] and analysis of spikes, putting together the results 
+        calling for each filter_win in filters make_filtered_traces() and call spikes_analysis() 
+        requires find_stoichiometry() done in advance
+        
+        TODO
+        sp_his and st_his are the same rescaled
+        '''
+        self.speed_hists_bins = []
+        self.stoic_hists_bins = []
+        for f in filters:
+            self.make_filtered_traces(filter_win=f, filter_name='savgol', savgol_deg=5, plots=False)
+            if not c1: 
+                c1 = len(self.speed_Hz_f)
+            speed_Hz_f = self.speed_Hz_f[c0:c1]
+            angle_turns_f = self.angle_turns_f[c0:c1]
+            self.spikes_analysis(speed_Hz_f, angle_turns_f, correct=True, nwin=50, std_fact=3, cond_thr=100, plots_lev=0)
+            sp_his, sp_bin = np.histogram(self.speed_amp_atspike, bins, density=True)
+            st_his, st_bin = np.histogram(self.stoich_amp_atspike, bins, density=True)
+            self.speed_hists_bins.append(list(zip(sp_bin[:-1], sp_his)))
+            self.stoic_hists_bins.append(list(zip(st_bin[:-1], st_his)))
+        self.auto_filter_spikeanalysis_Plots(filters=filters)
+        
+
+
+    def auto_filter_spikeanalysis_Plots(self, filters=[], offset0=0.05, offset1=0.2):
+        ''' plots atfer auto_filter_spikeanalysis() '''
+        fig = plt.figure('auto_filter_spikeanalysis_Plots', clear=True)
+        ax1 = fig.add_subplot(211)
+        for i,sh in enumerate(self.speed_hists_bins):
+            ax1.plot(np.array(sh)[:,0], np.array(sh)[:,1] + offset0*i, lw=2, label=f'filt: {filters[i]}')
+        ax1.legend()
+        ax1.set_xlabel('Spike speed ampl. (Hz)')
+        ax1.set_ylabel('Prob.')
+        ax2 = fig.add_subplot(212)
+        for i,sh in enumerate(self.stoic_hists_bins):
+            ax2.plot(np.array(sh)[:,0], np.array(sh)[:,1] + offset1*i, lw=2, label=f'filt: {filters[i]}')
+        ax2.legend()
+        ax2.set_xlabel('Spike stoichiometry ampl. (DN)')
+        ax2.set_ylabel('Prob.')
+        plt.tight_layout()
 
 
 
