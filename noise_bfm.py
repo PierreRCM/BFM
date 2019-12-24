@@ -14,7 +14,7 @@
 
 
 import numpy as np
-import matplotlib.pylab as plt
+import matplotlib.pyplot as plt
 import sys
 from scipy.optimize import curve_fit
 import scipy.stats
@@ -268,7 +268,7 @@ class BFMnoise():
 
 
 
-    def spikes_analysis(self, speed, angle_turns, correct=True, nwin=10, std_fact=3, cond_thr=10, plots_lev=0):
+    def spikes_analysis(self, speed, angle_turns, correct=True, nwin=10, std_fact=3, cond_thr=10, plots_lev=0, savefig=False):
         ''' locally find and analyse spikes in speed    
         std_fact : find locally points at std(speed)*std_fact
         plots_lev: 0,1,2 levels
@@ -381,7 +381,6 @@ class BFMnoise():
 
             fig3 = plt.figure('spikes_analysis 3', clear=True)
             bbins = 50
-            # TODO kernel density instead of hists 
             plt.subplot(421)
             plt.plot(self.speed_avg_atspike, self.spikes_durations2_s, '.', ms=4)
             plt.xlabel('Speed (Hz)')
@@ -390,7 +389,7 @@ class BFMnoise():
             plt.plot(*self.kernel_density_histo(self.spikes_durations1_s, band=np.mean(self.spikes_durations1_s)/30), label='method1')
             plt.plot(*self.kernel_density_histo(self.spikes_durations2_s, band=np.mean(self.spikes_durations2_s)/30), label='method2')
             plt.xlabel('spikes duration (s)')
-            plt.ylabel('Counts')
+            plt.ylabel('Prob.')
             plt.legend()
             
             plt.subplot(423)
@@ -400,33 +399,41 @@ class BFMnoise():
             plt.subplot(424)
             plt.plot(*self.kernel_density_histo(self.spikes_timebtw_s, band=np.mean(self.spikes_timebtw_s)/30))
             plt.xlabel('Time between spikes(s)')
-            plt.ylabel('Counts')
+            plt.ylabel('Prob.')
 
             plt.subplot(425)
             plt.plot(self.speed_avg_atspike, self.speed_amp_atspike, '.', ms=4)
             plt.ylabel('Spike ampl (Hz)')
             plt.xlabel('Speed (Hz)')
             plt.subplot(426)
-            #plt.hist(self.speed_amp_atspike, bbins)
             plt.plot(*self.kernel_density_histo(self.speed_amp_atspike, band=np.mean(self.speed_amp_atspike)/30))
             plt.xlabel('Spike ampl (Hz)')
-            plt.ylabel('Counts')
+            plt.ylabel('Prob.')
             
             plt.subplot(427)
             plt.plot(self.stoich_cor[spikes_idx0s], self.stoich_amp_atspike, '.', alpha=0.2)
-            #plt.plot(speed_corr[spikes_idx0s], self.stoich_amp_atspike, '.')
             plt.xlabel('n_stators')
             plt.ylabel('Dn_stators at spike')
             plt.subplot(428)
-            #plt.hist(self.stoich_amp_atspike, bbins)
             plt.plot(*self.kernel_density_histo(self.stoich_amp_atspike, band=np.mean(self.stoich_amp_atspike)/30))
             plt.xlabel('Dn_stators at spike')
-            plt.ylabel('Counts')
+            plt.ylabel('Prob.')
             plt.tight_layout()
+            
+            if savefig:
+                path = '/home/francesco/scripts/bactMotor/colab_victor/'
+                fname1 = path + f'spikes_analysis1_k{self.key}_filter{self.filter_win}.png'
+                fname3 = path + f'spikes_analysis2_k{self.key}_filter{self.filter_win}.png'
+                fig1.savefig(fname1)
+                fig3.savefig(fname3)
+                print(f'BFMnoise.spikes_analysi(): saved {fname1}')
+                print(f'BFMnoise.spikes_analysi(): saved {fname3}')
+                plt.pause(0.1)
 
 
 
-    def auto_filter_spikeanalysis(self, c0=None, c1=None, filters=[], nwins=50):
+
+    def auto_filter_spikeanalysis(self, c0=None, c1=None, filters=[], nwins=50, savefigs=False):
         ''' automatically filter speed[c0:c1] and analysis of spikes, putting together the results 
         calling for each filter_win in filters make_filtered_traces() and call spikes_analysis() 
         requires find_stoichiometry() done in advance
@@ -440,7 +447,7 @@ class BFMnoise():
                 c1 = len(self.speed_Hz_f)
             speed_Hz_f = self.speed_Hz_f[c0:c1]
             angle_turns_f = self.angle_turns_f[c0:c1]
-            self.spikes_analysis(speed_Hz_f, angle_turns_f, correct=True, nwin=nwins, std_fact=3, cond_thr=100, plots_lev=0)
+            self.spikes_analysis(speed_Hz_f, angle_turns_f, correct=True, nwin=nwins, std_fact=3, cond_thr=100, plots_lev=1, savefig=savefigs)
             # store:
             self.auto_speed_amp_atspike[f] = self.speed_amp_atspike
             self.auto_spikes_durations2_s[f] = self.spikes_durations2_s
@@ -449,7 +456,7 @@ class BFMnoise():
         
 
 
-    def auto_filter_spikeanalysis_Plots(self, bins=40, kernel='gaussian', band0=None, band1=None, band2=None, offset0=0, offset1=0, offset2=0):
+    def auto_filter_spikeanalysis_Plots(self, bins=40, kernel='gaussian', band0=None, band1=None, band2=None, offset0=0, offset1=0, offset2=0, savefig=False):
         ''' plots atfer auto_filter_spikeanalysis() '''
         fig = plt.figure('auto_filter_spikeanalysis_Plots', clear=True)
         ax1 = fig.add_subplot(311)
@@ -472,32 +479,24 @@ class BFMnoise():
             ax1.plot(speedamp_xk, speedamp_yk + i*offset0, label=f'filter: {f}')
             ax2.plot(spikedur_xk, spikedur_yk + i*offset1, label=f'filter: {f}')
             ax3.plot(spiketim_xk, spiketim_yk + i*offset2, label=f'filter: {f}')
-
+        [ax1.axvline(i*self.stoich_thr, alpha=0.2) for i in np.arange(0,10,1)]
+        ax11.plot()
+        ax11.set_xbound(ax1.get_xbound())
+        ax11.set_xticks(np.arange(0,10,1)*self.stoich_thr)
+        ax11.set_xticklabels(np.arange(0,10,1))
+        ax11.set_xlabel('Spike stators-ampl. (DN)')
         ax1.legend()
         ax1.grid(False)
-        ax1.set_xlabel('Spike speed ampl. (Hz)')
+        ax1.set_xlabel('Spike speed-ampl. (Hz)')
         ax1.set_ylabel('Prob. dens.')
-        #ax11.self.stoich_thr
-
-#ax2 = ax1.twiny()
-#ax1Xs = ax1.get_xticks()
-
-#ax2Xs = []
-#for X in ax1Xs:
-#    ax2Xs.append(X * 2)
-        ax11.plot(speedamp_xk/self.stoich_thr, speedamp_yk + i*offset0)
-        #ax11.cla()
-        #ax11.set_xticks(ax1.get_xticks())
-        #ax11.set_xbound(ax1.get_xbound())
-        #print([t/self.stoich_thr for t in ax1.get_xticks()])
-        #ax11.set_xticklabels([t/self.stoich_thr for t in ax1.get_xticks()])
-
-
         ax2.set_xlabel('Spike durations (s)')
         ax2.set_ylabel('Prob. dens.')
         ax3.set_xlabel('Time btw spikes (s)')
         ax3.set_ylabel('Prob. dens.')
-        #plt.tight_layout()
+        plt.tight_layout()
+        if savefig:
+            fname = f'auto_filter_spikeanalysis_Plots_k{self.key}_filter{self.filter_win}.png'
+            fig.savefig(fname)
 
 
 
