@@ -333,14 +333,14 @@ class BFMnoise():
         spikes_idx0s = spikes_idx0s[rm0pt]
         spikes_idx1s = spikes_idx1s[rm0pt]
         # initial (0) and final (1) time of each spike: 
-        spikes_t0s = spikes_idx0s/self.FPS
-        spikes_t1s = spikes_idx1s/self.FPS
+        self.spikes_t0s = spikes_idx0s/self.FPS
+        self.spikes_t1s = spikes_idx1s/self.FPS
         # spikes durations method 1 (counts n.pts below cond_thr):
         self.spikes_durations1_s = np.diff(np.append(0, np.nonzero(cond_1)[0]))/self.FPS
         # spikes durations method 2 (from t0 to t1):
-        self.spikes_durations2_s = spikes_t1s - spikes_t0s
+        self.spikes_durations2_s = self.spikes_t1s - self.spikes_t0s
         # time between spikes:
-        self.spikes_timebtw_s = spikes_t0s[1:] - spikes_t1s[:-1]
+        self.spikes_timebtw_s = self.spikes_t0s[1:] - self.spikes_t1s[:-1]
         # number of spikes in entire trace:
         spikes_numb = np.sum(cond_1)
         
@@ -555,17 +555,23 @@ class BFMnoise():
 
 
 
-    def kernel_density_histo(self, sig, kernel='gaussian', band=1, return_all=False):
+    def kernel_density_histo(self, sig, kernel='gaussian', logscale=False, band=1, return_all=False, plots=False):
         ''' kernel density histogram of input sig.
         kernel: ['gaussian'|'tophat'|'epanechnikov'|'exponential'|'linear'|'cosine']
         '''
         from sklearn.neighbors import KernelDensity
-        Xout = np.linspace(0, np.max(sig)*1.1, 1000)[:, np.newaxis]
+        if logscale:
+            Xout = np.logspace(np.log10(np.min(sig)*0.9), np.log10(np.max(sig)*1.1), 1000)[:, np.newaxis] 
+        else:
+            Xout = np.linspace(np.min(sig)*0.9, np.max(sig)*1.1, 1000)[:, np.newaxis]
         kde = KernelDensity(kernel=kernel, bandwidth=band).fit(sig[:, np.newaxis])
         dens = np.exp(kde.score_samples(Xout))
         score = kde.score_samples
+        if plots:
+            plt.figure('kernel_density_histo', clear=True)
+            plt.plot(Xout, dens)
         if return_all:
-            return Xout, dens, score
+            return Xout, dens, score, kde
         else: 
             return Xout, dens
 
