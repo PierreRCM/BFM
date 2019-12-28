@@ -344,19 +344,19 @@ class BFMnoise():
         # number of spikes in entire trace:
         spikes_numb = np.sum(cond_1)
         
-        self.speed_amp_atspike = []
-        self.stoich_amp_atspike = []
-        self.speed_avg_atspike = []
+        self.spikes_speed_amp = []
+        self.spikes_stoich_amp = []
+        self.spikes_speed_avg = []
         for i0,i1 in zip(spikes_idx0s, spikes_idx1s):
             # find speed-amplitude of spikes:
             meansp0 = np.mean(speed_corr[np.max([i0 - int(didxs[0]/2), 0]): i0])
             meansp1 = np.mean(speed_corr[i1: np.min([i1 + int(didxs[0]/2), len(speed_corr)])])
             _speed_avg_atspike = np.mean([meansp0, meansp1])
             speed_min_atspike = np.min(speed_corr[i0:i1])
-            self.speed_avg_atspike = np.append(self.speed_avg_atspike, _speed_avg_atspike)
-            self.speed_amp_atspike = np.append(self.speed_amp_atspike, _speed_avg_atspike - speed_min_atspike)
+            self.spikes_speed_avg = np.append(self.spikes_speed_avg, _speed_avg_atspike)
+            self.spikes_speed_amp = np.append(self.spikes_speed_amp, _speed_avg_atspike - speed_min_atspike)
         # find stoichiometry-amplitude of spikes:
-        self.stoich_amp_atspike = self.speed_amp_atspike/self.stoich_thr
+        self.spikes_stoich_amp = self.spikes_speed_amp/self.stoich_thr
 
         if plots_lev:
             ax1.plot(speed)
@@ -382,44 +382,81 @@ class BFMnoise():
             fig3 = plt.figure('spikes_analysis 3', clear=True)
             bbins = 50
             plt.subplot(421)
-            plt.plot(self.speed_avg_atspike, self.spikes_durations2_s, '.', ms=4)
+            plt.semilogy(self.spikes_speed_avg, self.spikes_durations2_s, '.', ms=4)
             plt.xlabel('Speed (Hz)')
             plt.ylabel('Spike duration (s)')
             plt.subplot(422)
-            plt.plot(*self.kernel_density_histo(self.spikes_durations1_s, band=np.mean(self.spikes_durations1_s)/30), label='method1')
-            plt.plot(*self.kernel_density_histo(self.spikes_durations2_s, band=np.mean(self.spikes_durations2_s)/30), label='method2')
+            #plt.plot(*self.kernel_density_histo(self.spikes_durations1_s, band=np.mean(self.spikes_durations1_s)/30), label='method1')
+            #plt.plot(*self.kernel_density_histo(self.spikes_durations2_s, band=np.mean(self.spikes_durations2_s)/30), label='method2')
+            logbins1 = np.logspace(np.log10(np.min(self.spikes_durations1_s)), np.log10(np.max(self.spikes_durations1_s)), bbins)
+            logbins2 = np.logspace(np.log10(np.min(self.spikes_durations2_s)), np.log10(np.max(self.spikes_durations2_s)), bbins)
+            plt.hist(self.spikes_durations1_s, bins=logbins1, density=True, label='method1')
+            plt.hist(self.spikes_durations2_s, bins=logbins2, density=True, label='method2', alpha=0.6)
             plt.xlabel('spikes duration (s)')
             plt.ylabel('Prob.')
+            plt.yscale('log')
+            plt.xscale('log')
             plt.legend()
             
             plt.subplot(423)
-            plt.plot(self.speed_avg_atspike[:-1], self.spikes_timebtw_s, '.', ms=4)
+            plt.semilogy(self.spikes_speed_avg[:-1], self.spikes_timebtw_s, '.', ms=4)
             plt.xlabel('Speed (Hz)')
-            plt.ylabel('Time between spikes(s)')
+            plt.ylabel('dt btw spikes(s)')
             plt.subplot(424)
-            plt.plot(*self.kernel_density_histo(self.spikes_timebtw_s, band=np.mean(self.spikes_timebtw_s)/30))
-            plt.xlabel('Time between spikes(s)')
+            #plt.plot(*self.kernel_density_histo(self.spikes_timebtw_s, band=np.mean(self.spikes_timebtw_s)/30))
+            logbins = np.logspace(np.log10(np.min(self.spikes_timebtw_s)), np.log10(np.max(self.spikes_timebtw_s)), bbins)
+            plt.hist(self.spikes_timebtw_s, bins=logbins, density=True)
+            plt.xlabel('dt btw spikes(s)')
             plt.ylabel('Prob.')
+            plt.xscale('log')
 
             plt.subplot(425)
-            plt.plot(self.speed_avg_atspike, self.speed_amp_atspike, '.', ms=4)
+            plt.plot(self.spikes_speed_avg, self.spikes_speed_amp, '.', ms=4)
             plt.ylabel('Spike ampl (Hz)')
             plt.xlabel('Speed (Hz)')
             plt.subplot(426)
-            plt.plot(*self.kernel_density_histo(self.speed_amp_atspike, band=np.mean(self.speed_amp_atspike)/30))
+            plt.plot(*self.kernel_density_histo(self.spikes_speed_amp, band=np.mean(self.spikes_speed_amp)/30))
             plt.xlabel('Spike ampl (Hz)')
             plt.ylabel('Prob.')
             
             plt.subplot(427)
-            plt.plot(self.stoich_cor[spikes_idx0s], self.stoich_amp_atspike, '.', alpha=0.2)
+            plt.plot(self.stoich_cor[spikes_idx0s], self.spikes_stoich_amp, '.', alpha=0.2)
             plt.xlabel('n_stators')
-            plt.ylabel('Dn_stators at spike')
+            plt.ylabel('Dstators spike')
             plt.subplot(428)
-            plt.plot(*self.kernel_density_histo(self.stoich_amp_atspike, band=np.mean(self.stoich_amp_atspike)/30))
-            plt.xlabel('Dn_stators at spike')
+            plt.plot(*self.kernel_density_histo(self.spikes_stoich_amp, band=np.mean(self.spikes_stoich_amp)/30))
+            plt.xlabel('Dstators spike')
             plt.ylabel('Prob.')
             plt.tight_layout()
             
+            fig4 = plt.figure('spikes_analysis4', clear=True)
+            ax41 = fig4.add_subplot(321)
+            ax42 = fig4.add_subplot(322)
+            ax43 = fig4.add_subplot(323)
+            ax44 = fig4.add_subplot(324)
+            ax45 = fig4.add_subplot(325)
+            ax46 = fig4.add_subplot(326)
+            ax41.semilogy(self.spikes_t0s[:-1], self.spikes_timebtw_s, '.')
+            ax41.set_xlabel('spikes_t0s')
+            ax41.set_ylabel('spikes_timebtw_s')
+            ax42.plot(self.spikes_t0s, self.spikes_speed_amp, '.')
+            ax42.set_xlabel('spikes_t0s')
+            ax42.set_ylabel('spikes_speed_amp')
+            ax43.semilogy(self.spikes_t0s, self.spikes_durations2_s, '.')
+            ax43.set_xlabel('spikes_t0s')
+            ax43.set_ylabel('spikes_durations2_s')
+            ax44.plot(self.spikes_t0s, self.spikes_stoich_amp, '.')
+            ax44.set_xlabel('spikes_t0s')
+            ax44.set_ylabel('spikes_stoich_amp')
+            ax45.semilogx(self.spikes_durations2_s, self.spikes_speed_amp, '.') 
+            ax45.set_xlabel('spikes_durations2_s')
+            ax45.set_ylabel('spikes_speed_amp')
+            ax46.semilogy(self.spikes_speed_amp[:-1], self.spikes_timebtw_s, '.') 
+            ax46.set_xlabel('spikes_speed_amp')
+            ax46.set_ylabel('spikes_timebtw_s')
+            plt.tight_layout()
+
+
             if savefig:
                 path = '/home/francesco/scripts/bactMotor/colab_victor/'
                 fname1 = path + f'spikes_analysis1_k{self.key}_filter{self.filter_win}.png'
@@ -449,7 +486,7 @@ class BFMnoise():
             angle_turns_f = self.angle_turns_f[c0:c1]
             self.spikes_analysis(speed_Hz_f, angle_turns_f, correct=True, nwin=nwins, std_fact=3, cond_thr=100, plots_lev=1, savefig=savefigs)
             # store:
-            self.auto_speed_amp_atspike[f] = self.speed_amp_atspike
+            self.auto_speed_amp_atspike[f] = self.spikes_speed_amp
             self.auto_spikes_durations2_s[f] = self.spikes_durations2_s
             self.auto_spikes_timebtw_s[f] = self.spikes_timebtw_s
         self.auto_filter_spikeanalysis_Plots()
@@ -507,6 +544,12 @@ class BFMnoise():
         stoichiometry parameters: stoich_thr (speed/stator, automatically median if None)
         '''
         import break_points
+        # store:
+        self.stoich_c0 = c0
+        self.stoich_c1 = c1
+        self.stoich_dws = dws
+        self.stoich_penalty = penalty
+        # find break points in trace:
         bkpts = break_points.BreakPoints(self.speed_Hz_f[c0:c1])
         bkpts.rpt_find_brkpts(segmentation_fn='BottomUp', cost_fn='l1', dws=dws, pen=penalty, plots=plots, clear=True)
         # ampl of all jumps in signal: 
