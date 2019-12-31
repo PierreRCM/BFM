@@ -52,7 +52,6 @@ class BFMnoise():
         self.filter_win  = filter_win
         self.key         = key
         self.get_dict(key)
-        #self.make_filtered_traces()
 
 
 
@@ -71,7 +70,7 @@ class BFMnoise():
         self.x           = d[key]['x']
         self.y           = d[key]['y']
         self.angle_turns = d[key]['theta_deg']/360
-        
+
         
 
     def make_filtered_traces(self, filter_win=None, filter_name=None, savgol_deg=5, plots=False):
@@ -342,11 +341,12 @@ class BFMnoise():
         # time between spikes:
         self.spikes_timebtw_s = self.spikes_t0s[1:] - self.spikes_t1s[:-1]
         # number of spikes in entire trace:
-        spikes_numb = np.sum(cond_1)
-        
-        self.spikes_speed_amp = []
+        self.spikes_numb = np.sum(cond_1)
+        # find spikes parameters: 
+        self.spikes_speed_amp  = []
         self.spikes_stoich_amp = []
-        self.spikes_speed_avg = []
+        self.spikes_speed_avg  = []
+        self.spikes_stoich_atspike = []
         for i0,i1 in zip(spikes_idx0s, spikes_idx1s):
             # find speed-amplitude of spikes:
             meansp0 = np.mean(speed_corr[np.max([i0 - int(didxs[0]/2), 0]): i0])
@@ -355,6 +355,8 @@ class BFMnoise():
             speed_min_atspike = np.min(speed_corr[i0:i1])
             self.spikes_speed_avg = np.append(self.spikes_speed_avg, _speed_avg_atspike)
             self.spikes_speed_amp = np.append(self.spikes_speed_amp, _speed_avg_atspike - speed_min_atspike)
+            # find stoichiometry at spike:
+            self.spikes_stoich_atspike = np.append(self.spikes_stoich_atspike, self.stoich_cor[i0])
         # find stoichiometry-amplitude of spikes:
         self.spikes_stoich_amp = self.spikes_speed_amp/self.stoich_thr
 
@@ -456,7 +458,6 @@ class BFMnoise():
             ax46.set_ylabel('spikes_timebtw_s')
             plt.tight_layout()
 
-
             if savefig:
                 path = '/home/francesco/scripts/bactMotor/colab_victor/'
                 fname1 = path + f'spikes_analysis1_k{self.key}_filter{self.filter_win}.png'
@@ -467,6 +468,32 @@ class BFMnoise():
                 print(f'BFMnoise.spikes_analysi(): saved {fname3}')
                 plt.pause(0.1)
 
+
+
+    def save_spikes_analysis(self):
+        ''' save dict after spikes_analysis() '''
+        dout = {'filename':self.filename,
+                'filter_name':self.filter_name,
+                'savgol_deg':self.savgol_deg,
+                'filter_win':self.filter_win,
+                'key':self.key,
+                'FPS':self.FPS,
+                'strain':self.strain,
+                'cellnum':self.cellnum,
+                'dbead_nm':self.dbead_nm,
+                'spikes_speed_amp':self.spikes_speed_amp,
+                'spikes_stoich_amp':self.spikes_stoich_amp,
+                'spikes_speed_avg':self.spikes_speed_avg,
+                'spikes_t0s':self.spikes_t0s,
+                'spikes_t1s':self.spikes_t1s,
+                'spikes_durations2_s':self.spikes_durations2_s,
+                'spikes_timebtw_s':self.spikes_timebtw_s,
+                'spikes_numb':self.spikes_numb,
+                'spikes_stoich_atspike':self.spikes_stoich_atspike,
+                'stoich_thr':self.stoich_thr}
+        fileout = self.filename.rsplit(sep='.')[0] + f'_spikes_key{self.key}_filt{self.filter_win}'
+        print(f'BFMnoise.save_spikes_analysis(): saving spikes_analysis in {fileout}')
+        np.save(fileout, dout)
 
 
 
