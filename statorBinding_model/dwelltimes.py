@@ -1,6 +1,9 @@
+''' dwell times analysis of kinetic simulated traces of n.stators(t) '''
+
 import numpy as np
 import matplotlib.pyplot as plt
 import itertools
+import time
 
 from LangmuirSimple import LangmuirSimple
 from TwoStateCatchTrad import TwoStateCatchTrad
@@ -10,31 +13,30 @@ from TwoStateCatchTrad import TwoStateCatchTrad
 Nmax = 12
 
 
-def make_traces_LangmuirSimple(n_traces=20, kin=0.5, kout=0.5, N0=0, njumps=20, saves=False):
-    ''' return n_traces LangmuirSimple traces, sampled at FPS, in a dict '''
+def make_traces_LangmuirSimple(n_traces=20, kin=0.5, kout=0.5, N0=0, njumps=20, FPS=100, return_filtered=False, filt_pen=1, saves=False):
+    ''' return n_traces LangmuirSimple traces, sampled at FPS, in a dict 
+    return_filtered: return d, d_filt (a filtered version of d, using parameter filt_pen)
+    '''
     d = {}
-    FPS = 1000
+    if return_filtered: 
+        d_filt = {}
     for i in range(n_traces):
         print(f'{i}/{n_traces}', end='\r')
         l = LangmuirSimple()
         l.make_trace(kin, kout, N0, njumps, plots=False)
         t_smpl , N_smpl = l.make_sampled_trace(l.time, l.N, FPS=FPS, plots=False)
         d[i] = {'time':t_smpl, 'N':N_smpl, 'FPS':FPS}
+        if return_filtered:
+            N_filt = filter_dwelltimes_smpl(N_smpl, t_smpl, pen=filt_pen, plots=False)
+            d_filt[i] = {'time':t_smpl, 'N':N_filt}
         if saves:
             np.savetxt(f'LangmuirSimple_{i}.txt', [l.time,l.N])
     if saves:
         np.savetxt(f'LangmuirSimple_True.txt', [kin,kout,N0,njumps], header='kin, kout, N0, njumps')
-    return d
-
-
-
-def langmuir_exp(t, kin, kout, N0):
-    KD = kout/kin
-    Neq = Nmax/(KD + 1)
-    tc = 1./(kout+kin)
-    with np.errstate(over='ignore'):
-        N = Neq + (N0-Neq)*np.exp(-t/tc)
-    return N
+    if return_filtered:
+        return d, d_filt
+    else:
+        return d
 
 
 
@@ -52,8 +54,68 @@ def make_traces_TwoStateCatchTrad(n_traces=20, kuw=1, kus=0, kwu=1, kws=1, ksu=0
 
 
 
-def find_dwelltimes(t_smpl, N_smpl):
-    ''' from the sampled trace N_smpl(t_smpl) find the times of the jumps and dwell times '''
+def filter_dwelltimes_smpl(N_smpl, t_smpl=[], pen=1, plots=False):
+    ''' return filtered version of trace N_smpl(t) (sampled),
+    using ruptures with parameter pen 
+    '''
+    import ruptures as rpt
+    t0 = time.time()
+    # find rupture points in N_smpl (can be slow):
+    #bkpts = rpt.Pelt(model='rbf', jump=1).fit_predict(N_smpl, pen=pen)
+    bkpts = rpt.Binseg(model='l2', jump=1).fit_predict(N_smpl, pen=pen)
+    print(f'filter_dwelltimes_smpl(): rupture p.ts done in {time.time()-t0:.1f}s')
+    bkpts = np.append(0, bkpts)
+    N_filt = np.zeros(len(N_smpl))
+    # between rpt points, choose for N_filt the most frequent value of N_smpl: 
+    for i in range(len(bkpts)-1):
+        Ns = N_smpl[bkpts[i]:bkpts[i+1]]
+        m = np.array(list(zip(set(Ns), [list(Ns).count(s) for s in set(Ns)]))) # [(Ni, counts(Ni))]
+        N_filt[bkpts[i]:bkpts[i+1]] = m[np.argmax(m[:,1])][0]
+    if plots:
+        if len(t_smpl)==0:
+            t_smpl = np.arange(len(N_smpl))
+        ts_orig, dwts_orig = find_dwelltimes_smpl(t_smpl, N_smpl)
+        ts_filt, dwts_filt = find_dwelltimes_smpl(t_smpl, N_filt)
+        bins_orig = np.logspace(np.log10(np.min(dwts_orig)), np.log10(np.max(dwts_orig)), 50)
+        bins_filt = np.logspace(np.log10(np.min(dwts_filt)), np.log10(np.max(dwts_filt)), 50)
+        bins = np.max([bins_filt, bins_orig], axis=0)
+        fig = plt.figure('filter_dwelltimes_smpl', clear=True)
+        ax1 = fig.add_subplot(311)
+        ax2 = fig.add_subplot(312)
+        ax3 = fig.add_subplot(313)
+        ax1.plot(t_smpl, N_smpl, '-', lw=3, label='orig')
+        ax1.vlines(t_smpl[bkpts[:-1]], 0, Nmax, ls='--', alpha=0.2)
+        ax1.plot(t_smpl, N_filt, label='filt')
+        ax1.legend()
+        ax1.set_xlabel('time or index')
+        ax2.plot(t_smpl, N_smpl-N_filt, label='orig-filt')
+        ax2.set_title(f'|err| = {np.sum(np.abs(N_smpl-N_filt))}', fontsize=10)
+        ax2.legend()
+        ax2.set_xlabel('time or index')
+        ax3.hist([dwts_orig,dwts_filt], bins, label=['orig','filt'])
+        ax3.legend()
+        ax3.set_xscale('log')
+        ax3.set_xlabel('dwell times')
+        ax3.set_ylabel('counts')
+        fig.tight_layout()
+    return N_filt
+
+
+
+def langmuir_exp(t, kin, kout, N0):
+    KD = kout/kin
+    Neq = Nmax/(KD + 1)
+    tc = 1./(kout+kin)
+    with np.errstate(over='ignore'):
+        N = Neq + (N0-Neq)*np.exp(-t/tc)
+    return N
+
+
+
+def find_dwelltimes_smpl(t_smpl, N_smpl):
+    ''' from the sampled trace N_smpl(t_smpl) 
+    return the times of the jumps and dwell times between them 
+    '''
     dN = np.diff(N_smpl)
     i = np.where(np.abs(dN)>0)
     ti = t_smpl[i]
@@ -89,7 +151,7 @@ def find_jumps_intime(d, n_win=20, last='max', kin=None, kout=None, N0=None, plo
     w_dt = w_ts[1]
     print(f'find_jumps_intime(): win dt:{w_dt:.3} s')
     # find times of jumps in traces: 
-    jump_times = [find_dwelltimes(d[k]['time'], d[k]['N'])[0] for k in d]
+    jump_times = [find_dwelltimes_smpl(d[k]['time'], d[k]['N'])[0] for k in d]
     jump_times = np.array([j for i in jump_times for j in i])
     # find mean trace:
     t_mn, N_mn = find_mean_trace(d, last=last, plots=False)
@@ -142,7 +204,7 @@ def find_jumps_intime(d, n_win=20, last='max', kin=None, kout=None, N0=None, plo
         ax4 = fig.add_subplot(224)
         for k in d:
             # all traces:
-            ax1.plot(d[k]['time'][::10], d[k]['N'][::10], alpha=0.4)
+            ax1.plot(d[k]['time'][::10], d[k]['N'][::10], alpha=0.4, ds='steps-post')
         # dots for jumps in traces:
         ax1.plot(jump_times, np.zeros(len(jump_times)), 'o', alpha=0.2)
         # mean trace:
@@ -164,17 +226,17 @@ def find_jumps_intime(d, n_win=20, last='max', kin=None, kout=None, N0=None, plo
                 kout0, dkout = kout
                 njmax, njmin, Nthmax, Nthmin = maxmin_LangTheo(kin0, dkin, kout0, dkout, Nmn_in_win, plots=0)
                 # LangmuirSimple error band:
-                ax3.fill_between(w_ts+w_dt/2, njmax, njmin, color='r', alpha=0.7, linewidth=0) 
+                ax3.fill_between(w_ts+w_dt/2, njmax, njmin, color='r', alpha=0.5, linewidth=0) 
             elif type(kin)==float and type(kout)==float:
                 kin0, kout0 = kin, kout
             # theoretical numb. of jumps in win for LangmuirSimple:
-            ax3.plot(w_ts+w_dt/2, njumps_theo(kin0, kout0, Nmn_in_win, w_dt), 'r--', label='Lang.Theo')
+            ax3.plot(w_ts+w_dt/2, njumps_theo(kin0, kout0, Nmn_in_win, w_dt), 'r--', lw=2, label='Lang.Theo')
             ax4.plot(np.arange(Nmax+1), (kin0*(Nmax-np.arange(Nmax+1)) + kout0*np.arange(Nmax+1))*w_dt, 'r--', label='Lang.Theo')
             ax4.fill_between(Nmn_in_win, njmin, njmax, linewidth=0, color='r', alpha=0.4)
             # LangmuirSimple error band:
             lab = f'Lang.Theo N0:{N0}\nkin:{kin0}$\pm{dkin}$\nkout:{kout0}$\pm${dkout}'
-            ax1.fill_between(t_mn, Nthmin, Nthmax, color='r', alpha=0.9, linewidth=0)
-            ax1.plot(t_mn, langmuir_exp(t_mn, kin0, kout0, N0), 'r--', label=lab)
+            ax1.fill_between(t_mn, Nthmin, Nthmax, color='r', alpha=0.4, linewidth=0)
+            ax1.plot(t_mn, langmuir_exp(t_mn, kin0, kout0, N0), 'r--', lw=2, label=lab)
 
         ax1.set_ylabel('N(t)')
         ax3.set_ylabel('<jumps> in win.')
@@ -232,3 +294,42 @@ def find_mean_trace(d, last='min', plots=False):
     return t_mn, N_mn
 
 
+
+
+##########
+
+def filter_dwelltimes(time, N, dwt_thr, plots=False):
+    ''' TODO filter dwell times out of trace (not sampled: time,N(time)) '''
+    # dwell times:
+    dwts = np.diff(time)
+    dN = np.diff(N)
+    N_filt = np.copy(N)
+    
+    for i in range(len(dwts)-1):
+        print(i, dwts[i])
+        if dwts[i] < dwt_thr:
+            print('    dwt < thr')
+            # if dN=[..,-1,1,..] with dwts<thr =>  
+            if dN[i] == -dN[i+1]:
+                print(f'        {dN}')
+                print(f'        {dN[i]}')
+                print(f'        {N[i]}')
+                print(f'        {N}')
+                N_filt[i] = N[i]
+                N_filt[i+1] = N[i]
+    
+    if plots:
+        bins = np.logspace(np.log10(np.min(dwts)), np.log10(np.max(dwts)), 50)
+        fig = plt.figure('filter_dwelltimes', clear=True)
+        plt.subplot(221)
+        plt.plot(time, N, lw=3, ds='steps-post')
+        plt.plot(time, N_filt, ds='steps-post')
+        plt.plot(time[1:], dwts, 'o')
+        plt.plot(time[1:], dN, '-+')
+        plt.subplot(222)
+        plt.hist(dwts, bins)
+        plt.xscale('log')
+        plt.subplot(223)
+        plt.plot(dwts, 'o')
+        plt.plot(dN, '-s')
+        plt.subplot(224)
